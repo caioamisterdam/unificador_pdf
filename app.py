@@ -1,104 +1,83 @@
 import streamlit as st
-import pandas as pd
 from PyPDF2 import PdfMerger
+from streamlit_sortables import sort_items
 import io
 import os
 
 # Configuração da página
-st.set_page_config(page_title="Unificador de PDFs", page_icon="⚖️", layout="centered")
+st.set_page_config(page_title="Unificador de PDFs", page_icon="📄", layout="centered")
+
+# --- CUSTOMIZAÇÃO VISUAL (CSS) ---
+# Aqui mudamos a cor para azul claro e garantimos o layout vertical
+st.markdown("""
+    <style>
+    /* Estiliza os itens do sortable para azul claro e margem vertical */
+    .stSortableList div[data-testid="stMarkdownContainer"] {
+        background-color: #e1f5fe !important; /* Azul clarinho */
+        color: #01579b !important; /* Texto azul escuro para contraste */
+        border-radius: 5px;
+        padding: 10px;
+        margin-bottom: 8px; /* Força um abaixo do outro */
+        border: 1px solid #b3e5fc;
+    }
+    </style>
+""", unsafe_allow_html=True)
 
 st.title("📄 Unificador de PDFs")
-st.markdown("""
-1. Faça o **upload** de todos os arquivos PDFs.
-2. Na tabela abaixo, **digite a numeração na coluna 'Ordem'** para definir a sequência final.
-3. Clique em **Unir Documentos** para gerar o arquivo.
-""")
+st.markdown("Arraste os arquivos para baixo ou para cima para definir a ordem final.")
 
-# 1. Upload de múltiplos arquivos
+# Componente de upload
 uploaded_files = st.file_uploader(
-    "Arraste os arquivos PDFs aqui", 
+    "Selecione os arquivos PDF", 
     type="pdf", 
-    accept_multiple_files=True,
-    help="Você pode selecionar vários arquivos de uma vez segurando Ctrl ou Shift."
+    accept_multiple_files=True
 )
 
 if uploaded_files:
-    # Criamos um DataFrame para mostrar na tabela, já sugerindo uma ordem sequencial
-    arquivos_data = []
-    for i, f in enumerate(uploaded_files):
-        tamanho_mb = f"{f.size / (1024 * 1024):.2f}".replace('.', ',')
-        arquivos_data.append({
-            "Arquivo": f.name,
-            "Tamanho (MB)": tamanho_mb,
-            "Ordem": i + 1  # Sugere uma ordem inicial automática
-        })
-    
-    df = pd.DataFrame(arquivos_data)
+    # Mapeia o nome do arquivo ao objeto real
+    arquivos_dict = {f.name: f for f in uploaded_files}
+    nomes_arquivos = list(arquivos_dict.keys())
 
     st.write("---")
     st.subheader("Defina a Ordem de União")
-    st.info("💡 Digite o número correspondente à posição desejada para cada arquivo:")
-
-    # 2. Tabela Editável Nativa (Vertical e Azul por padrão)
-    # O usuário pode alterar os números na coluna 'Ordem'
-    # Esta tabela atende aos requisitos de layout vertical e sem cor vermelha forte
-    edited_df = st.data_editor(
-        df,
-        column_config={
-            "Ordem": st.column_config.NumberColumn(
-                "Ordem",
-                help="Defina a prioridade de união (1 é o primeiro)",
-                min_value=1,
-                step=1,
-                width="small"
-            ),
-            "Arquivo": st.column_config.Column(width="large", disabled=True),
-            "Tamanho (MB)": st.column_config.Column(width="small", disabled=True),
-        },
-        hide_index=True,
-        use_container_width=True
-    )
+    
+    # O componente de arrastar e soltar
+    # Agora formatado via CSS acima para ser azul e vertical
+    ordem_final = sort_items(nomes_arquivos, direction="vertical")
 
     st.write("---")
-
-    # 3. Botão para processar a união
-    if st.button("🚀 Unir Documentos agora", type="primary"):
-        # Ordena o DataFrame com base no que o usuário digitou
-        df_ordenado = edited_df.sort_values(by="Ordem")
-        
+    
+    if st.button("🚀 Gerar PDF Unificado", type="primary"):
         merger = PdfMerger()
         
         try:
-            with st.spinner("Processando..."):
-                # Busca o arquivo original pelo nome usando o DataFrame ordenado
-                for nome_arquivo in df_ordenado["Arquivo"]:
-                    arquivo_original = next(f for f in uploaded_files if f.name == nome_arquivo)
-                    merger.append(arquivo_original)
+            with st.spinner("Unindo arquivos..."):
+                for nome in ordem_final:
+                    merger.append(arquivos_dict[nome])
+                
+                # Lógica do nome: Primeiro arquivo da lista + _unificado
+                primeiro_nome = ordem_final[0]
+                nome_base = os.path.splitext(primeiro_nome)[0]
+                nome_final = f"{nome_base}_unificado.pdf"
                 
                 # Gera o arquivo em memória
                 output = io.BytesIO()
                 merger.write(output)
                 merger.close()
                 
-                # Lógica do nome do arquivo (nome do primeiro + _unificado)
-                primeiro_nome = df_ordenado.iloc[0]["Arquivo"]
-                nome_base = os.path.splitext(primeiro_nome)[0]
-                nome_final = f"{nome_base}_unificado.pdf"
-                
-                # Formatação de tamanho com padrão brasileiro (vírgula)
+                # Formata o tamanho final com vírgula (padrão brasileiro)
                 tamanho_final = f"{len(output.getvalue()) / (1024 * 1024):.2f}".replace('.', ',')
                 
-                st.success(f"Concluído! Arquivo gerado: **{nome_final}** ({tamanho_final} MB)")
+                st.success(f"Tudo pronto! Arquivo: **{nome_final}** ({tamanho_final} MB)")
                 
-                # Botão para download do arquivo final
                 st.download_button(
-                    label="📥 Baixar PDF Unificado",
+                    label="📥 Baixar Agora",
                     data=output.getvalue(),
                     file_name=nome_final,
                     mime="application/pdf"
                 )
         except Exception as e:
-            st.error(f"Erro ao processar: {e}")
+            st.error(f"Ocorreu um erro: {e}")
 
 else:
-    st.info("Aguardando upload de arquivos para começar...")
+    st.info("Aguardando o upload de arquivos.")
