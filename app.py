@@ -4,43 +4,50 @@ from streamlit_sortables import sort_items
 import io
 import os
 
-# Configuração da página e título
+# Configuração da página
 st.set_page_config(page_title="Unificador de PDFs", page_icon="⚖️", layout="centered")
 
-# --- CSS PARA NÚMEROS FIXOS E VISUAL AZUL CLARO ---
+# --- CSS PARA NÚMEROS FIXOS E VISUAL AZUL ---
 st.markdown("""
     <style>
-    /* Container da lista para criar o efeito de linhas fixas */
+    /* Container principal da lista */
     .stSortableList {
         counter-reset: linha-pdf; 
-        padding-left: 40px; /* Espaço para o número fixo do lado de fora */
+        padding-left: 45px; /* Espaço para os números fixos à esquerda */
     }
     
-    /* Estilização do item (a 'linha' onde o arquivo entra) */
+    /* Estilização de cada barra (card) de arquivo */
     .stSortableList div[data-testid="stMarkdownContainer"] {
-        background-color: #e3f2fd !important; /* Azul clarinho */
-        color: #0d47a1 !important; /* Texto em azul escuro */
-        border-radius: 4px;
-        padding: 10px 15px;
-        margin-bottom: 8px;
+        background-color: #e3f2fd !important; /* Azul claro suave */
+        color: #0d47a1 !important; /* Texto em azul escuro para leitura */
+        border-radius: 6px;
+        padding: 12px 18px;
+        margin-bottom: 10px;
         border: 1px solid #bbdefb;
         position: relative;
         cursor: grab;
+        transition: transform 0.2s;
     }
 
-    /* O número fixo que fica à esquerda do card */
+    /* O número fixo que fica à esquerda, fora da barra azul */
     .stSortableList div[data-testid="stMarkdownContainer"]::before {
         counter-increment: linha-pdf;
-        content: counter(linha-pdf); /* Apenas o número */
+        content: counter(linha-pdf); 
         position: absolute;
-        left: -35px; /* Joga o número para fora do box azul */
+        left: -40px; /* Posiciona o número fora do box */
         top: 50%;
         transform: translateY(-50%);
         font-weight: bold;
-        color: #555;
-        font-size: 1.1em;
-        width: 25px;
+        color: #455a64;
+        font-size: 1.2em;
+        width: 30px;
         text-align: right;
+    }
+    
+    /* Efeito visual ao arrastar */
+    .stSortableList div[data-testid="stMarkdownContainer"]:active {
+        cursor: grabbing;
+        background-color: #bbdefb !important;
     }
     </style>
 """, unsafe_allow_html=True)
@@ -48,7 +55,7 @@ st.markdown("""
 st.title("📄 Unificador de PDFs")
 st.markdown("Arraste os arquivos para as linhas numeradas abaixo para definir a sequência.")
 
-# Upload de arquivos
+# 1. Upload de arquivos
 uploaded_files = st.file_uploader(
     "Selecione os arquivos PDF", 
     type="pdf", 
@@ -56,19 +63,20 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    # Mapeamento para processamento
+    # Mapeamento para garantir que o conteúdo siga o nome
     arquivos_dict = {f.name: f for f in uploaded_files}
     nomes_arquivos = list(arquivos_dict.keys())
 
     st.write("---")
-    st.subheader("Ordem de União")
+    st.subheader("Defina a Ordem de União")
     
-    # Interface de arrastar (Vertical) com a numeração fixa via CSS
+    # 2. Interface de arrastar (Vertical)
     ordem_final = sort_items(nomes_arquivos, direction="vertical")
 
     st.write("---")
     
-    if st.button("🚀 Unir PDFs nas Linhas Definidas", type="primary"):
+    # 3. Botão para processar
+    if st.button("🚀 Gerar PDF Unificado", type="primary"):
         merger = PdfMerger()
         
         try:
@@ -76,17 +84,17 @@ if uploaded_files:
                 for nome in ordem_final:
                     merger.append(arquivos_dict[nome])
                 
-                # Regra de nome: Primeiro arquivo + _unificado
+                # Regra de nome: Primeiro arquivo da lista ordenada + _unificado
                 primeiro_nome = ordem_final[0]
                 nome_base = os.path.splitext(primeiro_nome)[0]
                 nome_final = f"{nome_base}_unificado.pdf"
                 
-                # Processamento em memória para segurança
+                # Gera o PDF em memória (segurança e performance)
                 output = io.BytesIO()
                 merger.write(output)
                 merger.close()
                 
-                # Tamanho com vírgula conforme sua preferência
+                # Formatação do tamanho com vírgula (padrão brasileiro)
                 tamanho_final = f"{len(output.getvalue()) / (1024 * 1024):.2f}".replace('.', ',')
                 
                 st.success(f"União concluída! Arquivo: **{nome_final}** ({tamanho_final} MB)")
@@ -98,6 +106,7 @@ if uploaded_files:
                     mime="application/pdf"
                 )
         except Exception as e:
-            st.error(f"Erro ao processar: {e}")
+            st.error(f"Ocorreu um erro ao processar os arquivos: {e}")
+
 else:
-    st.info("Por favor, carregue os arquivos para começar.")
+    st.info("Aguardando o upload de documentos para começar.")
