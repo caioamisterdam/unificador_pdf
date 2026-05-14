@@ -4,29 +4,51 @@ from streamlit_sortables import sort_items
 import io
 import os
 
-# Configuração da página
-st.set_page_config(page_title="Unificador de PDFs", page_icon="📄", layout="centered")
+# Configuração da página e título
+st.set_page_config(page_title="Unificador de PDFs", page_icon="⚖️", layout="centered")
 
-# --- CUSTOMIZAÇÃO VISUAL (CSS) ---
-# Aqui mudamos a cor para azul claro e garantimos o layout vertical
+# --- CSS PARA NÚMEROS FIXOS E VISUAL AZUL CLARO ---
 st.markdown("""
     <style>
-    /* Estiliza os itens do sortable para azul claro e margem vertical */
+    /* Container da lista para criar o efeito de linhas fixas */
+    .stSortableList {
+        counter-reset: linha-pdf; 
+        padding-left: 40px; /* Espaço para o número fixo do lado de fora */
+    }
+    
+    /* Estilização do item (a 'linha' onde o arquivo entra) */
     .stSortableList div[data-testid="stMarkdownContainer"] {
-        background-color: #e1f5fe !important; /* Azul clarinho */
-        color: #01579b !important; /* Texto azul escuro para contraste */
-        border-radius: 5px;
-        padding: 10px;
-        margin-bottom: 8px; /* Força um abaixo do outro */
-        border: 1px solid #b3e5fc;
+        background-color: #e3f2fd !important; /* Azul clarinho */
+        color: #0d47a1 !important; /* Texto em azul escuro */
+        border-radius: 4px;
+        padding: 10px 15px;
+        margin-bottom: 8px;
+        border: 1px solid #bbdefb;
+        position: relative;
+        cursor: grab;
+    }
+
+    /* O número fixo que fica à esquerda do card */
+    .stSortableList div[data-testid="stMarkdownContainer"]::before {
+        counter-increment: linha-pdf;
+        content: counter(linha-pdf); /* Apenas o número */
+        position: absolute;
+        left: -35px; /* Joga o número para fora do box azul */
+        top: 50%;
+        transform: translateY(-50%);
+        font-weight: bold;
+        color: #555;
+        font-size: 1.1em;
+        width: 25px;
+        text-align: right;
     }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("📄 Unificador de PDFs")
-st.markdown("Arraste os arquivos para baixo ou para cima para definir a ordem final.")
+st.markdown("Arraste os arquivos para as linhas numeradas abaixo para definir a sequência.")
 
-# Componente de upload
+# Upload de arquivos
 uploaded_files = st.file_uploader(
     "Selecione os arquivos PDF", 
     type="pdf", 
@@ -34,50 +56,48 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    # Mapeia o nome do arquivo ao objeto real
+    # Mapeamento para processamento
     arquivos_dict = {f.name: f for f in uploaded_files}
     nomes_arquivos = list(arquivos_dict.keys())
 
     st.write("---")
-    st.subheader("Defina a Ordem de União")
+    st.subheader("Ordem de União")
     
-    # O componente de arrastar e soltar
-    # Agora formatado via CSS acima para ser azul e vertical
+    # Interface de arrastar (Vertical) com a numeração fixa via CSS
     ordem_final = sort_items(nomes_arquivos, direction="vertical")
 
     st.write("---")
     
-    if st.button("🚀 Gerar PDF Unificado", type="primary"):
+    if st.button("🚀 Unir PDFs nas Linhas Definidas", type="primary"):
         merger = PdfMerger()
         
         try:
-            with st.spinner("Unindo arquivos..."):
+            with st.spinner("Unindo documentos..."):
                 for nome in ordem_final:
                     merger.append(arquivos_dict[nome])
                 
-                # Lógica do nome: Primeiro arquivo da lista + _unificado
+                # Regra de nome: Primeiro arquivo + _unificado
                 primeiro_nome = ordem_final[0]
                 nome_base = os.path.splitext(primeiro_nome)[0]
                 nome_final = f"{nome_base}_unificado.pdf"
                 
-                # Gera o arquivo em memória
+                # Processamento em memória para segurança
                 output = io.BytesIO()
                 merger.write(output)
                 merger.close()
                 
-                # Formata o tamanho final com vírgula (padrão brasileiro)
+                # Tamanho com vírgula conforme sua preferência
                 tamanho_final = f"{len(output.getvalue()) / (1024 * 1024):.2f}".replace('.', ',')
                 
-                st.success(f"Tudo pronto! Arquivo: **{nome_final}** ({tamanho_final} MB)")
+                st.success(f"União concluída! Arquivo: **{nome_final}** ({tamanho_final} MB)")
                 
                 st.download_button(
-                    label="📥 Baixar Agora",
+                    label="📥 Baixar PDF Final",
                     data=output.getvalue(),
                     file_name=nome_final,
                     mime="application/pdf"
                 )
         except Exception as e:
-            st.error(f"Ocorreu um erro: {e}")
-
+            st.error(f"Erro ao processar: {e}")
 else:
-    st.info("Aguardando o upload de arquivos.")
+    st.info("Por favor, carregue os arquivos para começar.")
