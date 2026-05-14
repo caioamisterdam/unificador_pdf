@@ -7,55 +7,51 @@ import os
 # Configuração da página
 st.set_page_config(page_title="Unificador de PDFs", page_icon="⚖️", layout="centered")
 
-# --- CSS PARA NÚMEROS FIXOS E VISUAL AZUL ---
+# --- CSS REFORÇADO PARA NÚMEROS FIXOS E COR AZUL ---
 st.markdown("""
     <style>
-    /* Container principal da lista */
-    .stSortableList {
-        counter-reset: linha-pdf; 
-        padding-left: 45px; /* Espaço para os números fixos à esquerda */
-    }
-    
-    /* Estilização de cada barra (card) de arquivo */
-    .stSortableList div[data-testid="stMarkdownContainer"] {
-        background-color: #e3f2fd !important; /* Azul claro suave */
-        color: #0d47a1 !important; /* Texto em azul escuro para leitura */
-        border-radius: 6px;
-        padding: 12px 18px;
-        margin-bottom: 10px;
-        border: 1px solid #bbdefb;
-        position: relative;
-        cursor: grab;
-        transition: transform 0.2s;
+    /* 1. Remove o vermelho e aplica o azul claro em cada item */
+    div[data-testid="stMarkdownContainer"] > div[style*="background-color: rgb(255, 75, 75)"], 
+    div[style*="background-color: #ff4b4b"],
+    .stSortableList div {
+        background-color: #e3f2fd !important; /* Azul claro */
+        color: #0d47a1 !important; /* Texto azul escuro */
+        border: 1px solid #bbdefb !important;
+        border-radius: 8px !important;
     }
 
-    /* O número fixo que fica à esquerda, fora da barra azul */
-    .stSortableList div[data-testid="stMarkdownContainer"]::before {
-        counter-increment: linha-pdf;
-        content: counter(linha-pdf); 
+    /* 2. Cria o espaço para os números fixos à esquerda */
+    .stSortableList {
+        counter-reset: pdf-row;
+        padding-left: 40px !important;
+    }
+
+    /* 3. Adiciona os números fixos (eles não se movem com o arquivo) */
+    .stSortableList > div {
+        position: relative;
+        margin-bottom: 12px !important;
+    }
+
+    .stSortableList > div::before {
+        counter-increment: pdf-row;
+        content: counter(pdf-row);
         position: absolute;
-        left: -40px; /* Posiciona o número fora do box */
+        left: -35px;
         top: 50%;
         transform: translateY(-50%);
         font-weight: bold;
-        color: #455a64;
-        font-size: 1.2em;
-        width: 30px;
+        color: #1e88e5;
+        font-size: 1.1rem;
+        width: 25px;
         text-align: right;
-    }
-    
-    /* Efeito visual ao arrastar */
-    .stSortableList div[data-testid="stMarkdownContainer"]:active {
-        cursor: grabbing;
-        background-color: #bbdefb !important;
     }
     </style>
 """, unsafe_allow_html=True)
 
 st.title("📄 Unificador de PDFs")
-st.markdown("Arraste os arquivos para as linhas numeradas abaixo para definir a sequência.")
+st.markdown("Arraste os arquivos para as posições numeradas abaixo.")
 
-# 1. Upload de arquivos
+# Upload de arquivos
 uploaded_files = st.file_uploader(
     "Selecione os arquivos PDF", 
     type="pdf", 
@@ -63,39 +59,40 @@ uploaded_files = st.file_uploader(
 )
 
 if uploaded_files:
-    # Mapeamento para garantir que o conteúdo siga o nome
+    # Mapeia nome ao arquivo real
     arquivos_dict = {f.name: f for f in uploaded_files}
     nomes_arquivos = list(arquivos_dict.keys())
 
     st.write("---")
-    st.subheader("Defina a Ordem de União")
+    st.subheader("Ordem de União")
     
-    # 2. Interface de arrastar (Vertical)
+    # Componente de arrastar (Vertical)
+    # Os números fixos são injetados via CSS acima
     ordem_final = sort_items(nomes_arquivos, direction="vertical")
 
     st.write("---")
     
-    # 3. Botão para processar
     if st.button("🚀 Gerar PDF Unificado", type="primary"):
         merger = PdfMerger()
         
         try:
-            with st.spinner("Unindo documentos..."):
+            with st.spinner("Processando documentos..."):
                 for nome in ordem_final:
                     merger.append(arquivos_dict[nome])
                 
-                # Regra de nome: Primeiro arquivo da lista ordenada + _unificado
+                # Nome: Primeiro da lista + _unificado
                 primeiro_nome = ordem_final[0]
                 nome_base = os.path.splitext(primeiro_nome)[0]
                 nome_final = f"{nome_base}_unificado.pdf"
                 
-                # Gera o PDF em memória (segurança e performance)
+                # Saída em memória
                 output = io.BytesIO()
                 merger.write(output)
                 merger.close()
                 
-                # Formatação do tamanho com vírgula (padrão brasileiro)
-                tamanho_final = f"{len(output.getvalue()) / (1024 * 1024):.2f}".replace('.', ',')
+                # Formata tamanho com vírgula (padrão brasileiro)
+                tamanho_bytes = len(output.getvalue())
+                tamanho_final = f"{tamanho_bytes / (1024 * 1024):.2f}".replace('.', ',')
                 
                 st.success(f"União concluída! Arquivo: **{nome_final}** ({tamanho_final} MB)")
                 
@@ -106,7 +103,6 @@ if uploaded_files:
                     mime="application/pdf"
                 )
         except Exception as e:
-            st.error(f"Ocorreu um erro ao processar os arquivos: {e}")
-
+            st.error(f"Erro no processamento: {e}")
 else:
-    st.info("Aguardando o upload de documentos para começar.")
+    st.info("Carregue os PDFs para definir a ordem.")
