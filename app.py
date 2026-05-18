@@ -12,7 +12,7 @@ st.title("📄 Unificador de PDFs")
 
 # Componente de upload
 uploaded_files = st.file_uploader(
-    "Selecione os arquivos PDF", 
+    "Arraste os arquivos PDF aqui ou clique em 'Upload' para selecionar", 
     type="pdf", 
     accept_multiple_files=True
 )
