@@ -1,5 +1,6 @@
 import streamlit as st
 from PyPDF2 import PdfMerger, PdfReader
+from streamlit_sortables import sort_items
 import io
 import os
 import re
@@ -26,46 +27,55 @@ if uploaded_files:
     st.subheader("Defina a Ordem de União")
     
     # Componente padrão de arrastar na vertical
-    from streamlit_sortables import sort_items
     ordem_final = sort_items(nomes_arquivos, direction="vertical")
 
     st.write("---")
     st.subheader("Nome do Arquivo de Saída")
     
-    # --- LÓGICA DE LEITURA INTERNA DO MENOR ARQUIVO ---
+    # --- LÓGICA DE IDENTIFICAÇÃO DO PROCESSO REFORÇADA ---
     sugestao_nome = ""
+    padrao_cnj = r'\d{7}-\d{2}\.\d{4}\.\d\.\d{2}\.\d{4}'
     
+    # 1. TENTATIVA A: Ler a primeira página do menor arquivo procurando por "Processo nº"
     try:
-        # 1. Encontra o menor arquivo por tamanho em bytes
         arquivo_menor = min(uploaded_files, key=lambda f: f.size)
-        
-        # 2. Lê a primeira página do menor arquivo
         reader = PdfReader(arquivo_menor)
         if len(reader.pages) > 0:
             texto_primeira_pagina = reader.pages[0].extract_text()
             
             if texto_primeira_pagina:
-                # 3. Procura por "Processo nº" seguido por números, pontos ou traços
-                # Captura formatos como "Processo nº 1005058-94.2026.8.26.0053"
-                match = re.search(r'Processo\s*(?:nº|n°|n\.|º|°|:)?\s*([\d\.\-]+)', texto_primeira_pagina, re.IGNORECASE)
-                if match:
-                    sugestao_nome = match.group(1).strip()
-                    # Remove pontuações que possam ter ficado presas no final do número
-                    sugestao_nome = sugestao_nome.rstrip('.-')
-    except Exception as e:
-        # Se o PDF for protegido ou houver erro na leitura, ignora e usa o plano B
+                # Captura formatos numéricos após o termo "Processo"
+                match_texto = re.search(r'Processo\s*(?:nº|n°|n\.|º|°|:)?\s*([\d\.\-]+)', texto_primeira_pagina, re.IGNORECASE)
+                if match_texto:
+                    numero_extraido = match_texto.group(1).strip().rstrip('.-')
+                    # Valida se o que foi extraído tem tamanho de processo
+                    if sum(c.isdigit() for c in numero_extraido) >= 10:
+                        sugestao_nome = numero_extraido
+    except Exception:
         pass
 
-    # Plano B: Caso não encontre o texto ou o PDF seja uma imagem escaneada sem OCR
+    # 2. TENTATIVA B (Filtro Anti-Sufixo): Se o texto falhou (ex: PDF escaneado),
+    # vasculha os NOMES dos arquivos procurando pelo formato CNJ puro para eliminar o "-minuta"
+    if not sugestao_nome:
+        for f in uploaded_files:
+            match_nome = re.search(padrao_cnj, f.name)
+            if match_nome:
+                sugestao_nome = match_nome.group(0) # Captura APENAS o número padrão CNJ
+                break
+
+    # 3. TENTATIVA C (Caso não haja formato CNJ padrão): Pega o nome do menor e limpa textos conhecidos
     if not sugestao_nome:
         arquivo_menor = min(uploaded_files, key=lambda f: f.size)
-        sugestao_nome = os.path.splitext(arquivo_menor.name)[0].strip()
+        nome_base = os.path.splitext(arquivo_menor.name)[0].strip()
+        # Remove palavras comuns de sufixo judiciais
+        nome_base = re.sub(r'[-_ ]*(minuta|peticao|inicial|contestacao|procuracao|substabelecimento).*$', '', nome_base, flags=re.IGNORECASE)
+        sugestao_nome = nome_base.strip().rstrip('.-')
         
     # Campo interativo para confirmar ou digitar o número do processo
     nome_processo = st.text_input(
-        "Número do Processo capturado internamente:", 
+        "Número do Processo capturado:", 
         value=sugestao_nome,
-        help="O sistema leu a 1ª página do menor arquivo e extraiu o número após 'Processo nº'."
+        help="O sistema limpa automaticamente termos como '-minuta' para deixar apenas o número limpo."
     )
     
     # Garante a extensão .pdf no final do nome escolhido
@@ -95,7 +105,7 @@ if uploaded_files:
                 
                 st.success(f"União concluída! Arquivo pronto: **{nome_final}** ({tamanho_final} MB)")
                 
-                # Botão de download com o nome capturado do texto
+                # Botão de download com o nome limpo
                 st.download_button(
                     label="📥 Baixar PDF Final",
                     data=output.getvalue(),
