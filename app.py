@@ -9,7 +9,7 @@ import re
 st.set_page_config(page_title="Unificador de PDFs", page_icon="⚖️", layout="centered")
 
 st.title("📄 Unificador de PDFs")
-st.markdown("Arraste os arquivos para cima ou para baixo para definir a ordem final. A minuta deve ficar embaixo.")
+
 
 # --- CONTROLE DE MEMÓRIA PARA RESETAR O UPLOADER ---
 if "uploader_key" not in st.session_state:
@@ -35,7 +35,8 @@ if uploaded_files:
 
     st.write("---")
     st.subheader("Defina a Ordem de União")
-    
+    st.markdown("Arraste os arquivos para cima ou para baixo para definir a ordem final. A minuta deve ficar embaixo.")
+   
     # Componente padrão de arrastar na vertical
     ordem_final = sort_items(nomes_arquivos, direction="vertical")
 
